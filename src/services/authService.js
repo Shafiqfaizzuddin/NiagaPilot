@@ -1,28 +1,31 @@
 import {
   createUserWithEmailAndPassword,
+  browserLocalPersistence,
   onAuthStateChanged,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
-  updateProfile,
 } from 'firebase/auth'
 import { auth } from '../config/firebase'
 
-export function observeAuth(callback) {
+export function observeAuth(callback, onError) {
   if (!auth) {
     callback(null)
     return () => {}
   }
-  return onAuthStateChanged(auth, callback)
+  return onAuthStateChanged(auth, callback, onError)
 }
 
-export async function registerUser({ name, email, password }) {
+export async function registerUser({ email, password }) {
+  await setPersistence(auth, browserLocalPersistence)
   const credential = await createUserWithEmailAndPassword(auth, email, password)
-  await updateProfile(credential.user, { displayName: name })
   return credential.user
 }
 
 export async function loginUser({ email, password }) {
-  return signInWithEmailAndPassword(auth, email, password)
+  await setPersistence(auth, browserLocalPersistence)
+  const credential = await signInWithEmailAndPassword(auth, email, password)
+  return credential.user
 }
 
 export async function logoutUser() {

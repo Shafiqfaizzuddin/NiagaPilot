@@ -1,0 +1,123 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function ownsDocument(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validProfile(userId) {
+      return request.resource.data.keys().hasOnly(['uid', 'fullName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['uid', 'fullName', 'email', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid is string
+        && request.resource.data.uid == userId
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.trim().size() >= 2
+        && request.resource.data.fullName.size() <= 100
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if ownsDocument(userId);
+      allow list, delete: if false;
+      allow create: if ownsDocument(userId)
+        && validProfile(userId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownsDocument(userId)
+        && validProfile(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'updatedAt'])
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /users/{userId}/businesses/{businessId} {
+      allow get, list: if ownsDocument(userId);
+      allow delete: if false;
+      allow create: if ownsDocument(userId)
+        && validBusiness()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownsDocument(userId)
+        && validBusiness()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'category', 'description', 'location', 'updatedAt'])
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validBusiness() {
+      return request.resource.data.keys().hasOnly(['name', 'category', 'description', 'location', 'currency', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['name', 'category', 'description', 'location', 'currency', 'createdAt', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.trim().size() >= 1
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.category in ['Food & Beverage', 'Retail', 'Online Business', 'Services', 'Agriculture', 'Other']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 500
+        && request.resource.data.location is string
+        && request.resource.data.location.size() <= 120
+        && request.resource.data.currency == 'MYR'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    match /users/{userId}/expenses/{expenseId} {
+      allow get, list: if ownsDocument(userId);
+      allow create: if ownsDocument(userId)
+        && validExpense()
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(request.resource.data.businessId))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownsDocument(userId)
+        && validExpense()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['description', 'category', 'amountCents', 'transactionDate', 'paymentMethod', 'merchant', 'notes', 'updatedAt'])
+        && request.resource.data.businessId == resource.data.businessId
+        && request.resource.data.source == resource.data.source
+        && request.resource.data.createdAt == resource.data.createdAt
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(resource.data.businessId))
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if ownsDocument(userId)
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(resource.data.businessId));
+    }
+
+    function validTransactionDate(dateText) {
+      let year = int(dateText[0:4]);
+      let month = int(dateText[5:7]);
+      let day = int(dateText[8:10]);
+      return dateText.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && year >= 1 && year <= 9999
+        && month >= 1 && month <= 12
+        && day >= 1 && day <= 31
+        && timestamp.date(year, month, day).year() == year
+        && timestamp.date(year, month, day).month() == month
+        && timestamp.date(year, month, day).day() == day;
+    }
+
+    function validExpense() {
+      return request.resource.data.keys().hasOnly(['businessId', 'description', 'category', 'amountCents', 'transactionDate', 'paymentMethod', 'merchant', 'notes', 'source', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['businessId', 'description', 'category', 'amountCents', 'transactionDate', 'paymentMethod', 'merchant', 'notes', 'source', 'createdAt', 'updatedAt'])
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && request.resource.data.description is string
+        && request.resource.data.description.trim().size() >= 1
+        && request.resource.data.description.size() <= 120
+        && request.resource.data.category in ['Ingredients', 'Packaging', 'Utilities', 'Rent', 'Transportation', 'Equipment', 'Marketing', 'Other']
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents > 0
+        && request.resource.data.amountCents <= 99999999999
+        && request.resource.data.transactionDate is string
+        && validTransactionDate(request.resource.data.transactionDate)
+        && request.resource.data.paymentMethod in ['', 'Cash', 'Bank Transfer', 'E-Wallet', 'Debit/Credit Card', 'Other']
+        && request.resource.data.merchant is string
+        && request.resource.data.merchant.size() <= 120
+        && request.resource.data.notes is string
+        && request.resource.data.notes.size() <= 500
+        && request.resource.data.source == 'manual'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+  }
+}

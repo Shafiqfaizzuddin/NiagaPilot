@@ -1,52 +1,45 @@
-import { ArrowRight, ChartColumnIncreasing, ReceiptText, Wallet } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, CalendarDays, Plus, ReceiptText, Wallet } from 'lucide-react'
 import { Link } from 'react-router'
 import { StatCard } from '../../components/dashboard/StatCard'
-import { EmptyState } from '../../components/common/EmptyState'
+import { ExpenseTrendChart } from '../../components/dashboard/ExpenseTrendChart'
+import { RecentTransactions } from '../../components/dashboard/RecentTransactions'
+import { CategoryBreakdown } from '../../components/expenses/CategoryBreakdown'
 import { useAuth } from '../../hooks/useAuth'
+import { useBusiness } from '../../hooks/useBusiness'
+import { useExpenses } from '../../hooks/useExpenses'
+import { dashboardExpenseStats, greetingForLocalTime, monthComparison } from '../../utils/dashboardData'
+import { formatMYR } from '../../utils/money'
 
 export function DashboardPage() {
-  const { user } = useAuth()
-  const firstName = user?.displayName?.split(' ')[0]
-  return (
-    <div className="space-y-7">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-emerald-700">YOUR WORKSPACE</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Welcome{firstName ? `, ${firstName}` : ''} 👋</h2>
-          <p className="mt-2 text-sm text-slate-500">A clearer view of your business starts here.</p>
-        </div>
-        <Link to="/expenses" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700">View expenses <ArrowRight size={17} /></Link>
+  const { userProfile } = useAuth()
+  const { activeBusiness } = useBusiness()
+  const { expenses, loading, error } = useExpenses(activeBusiness.id)
+  const [trendPeriod, setTrendPeriod] = useState('last7')
+  const now = new Date()
+  const firstName = userProfile?.fullName?.trim().split(/\s+/)[0] || 'there'
+  const currentDate = new Intl.DateTimeFormat('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)
+  const stats = dashboardExpenseStats(expenses, now)
+
+  return <div className="space-y-6 sm:space-y-7">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Spending overview</p><h2 className="mt-2 break-words text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{greetingForLocalTime(now)}, {firstName}!</h2><p className="mt-2 text-sm text-slate-500">Here's an overview of your business spending.</p><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-slate-600"><span className="inline-flex min-w-0 items-center gap-1.5"><Wallet size={15} className="shrink-0 text-emerald-600" /><span className="break-words">{activeBusiness.name}</span></span><span className="inline-flex items-center gap-1.5"><CalendarDays size={15} className="shrink-0 text-emerald-600" />{currentDate}</span></div></div>
+      <Link to="/expenses?add=1" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus size={18} /> Add Expense</Link>
+    </header>
+
+    {loading ? <div aria-label="Loading dashboard expenses" className="space-y-5"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-2xl bg-slate-200" />)}</div><div className="grid gap-5 xl:grid-cols-2"><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /><div className="h-80 animate-pulse rounded-2xl bg-slate-200" /></div></div> : error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error.code === 'permission-denied' ? 'You do not have permission to load these expenses. Check your Firestore rules.' : error.message || 'Could not load business expenses. Please try again.'}</div> : <>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Expenses" icon={Wallet} value={formatMYR(stats.totalCents)} note="All time · active business" />
+        <StatCard label="Expenses This Month" icon={CalendarDays} value={formatMYR(stats.thisMonthCents)} note="Current local calendar month" />
+        <StatCard label="Expenses Last Month" icon={CalendarDays} value={formatMYR(stats.lastMonthCents)} note="Previous local calendar month" />
+        <StatCard label="Number of Transactions" icon={ReceiptText} value={String(stats.count)} note="All time · active business" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Total expenses" icon={Wallet} note="Available when expense tracking is enabled" />
-        <StatCard label="Expenses this month" icon={ReceiptText} note="No expense data yet" />
-        <StatCard label="Spending overview" icon={ChartColumnIncreasing} note="Insights will appear with your records" />
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div><h3 className="font-semibold text-slate-900">Recent expenses</h3><p className="mt-1 text-sm text-slate-500">Your latest business spending in one place.</p></div>
-            <Link to="/expenses" className="shrink-0 text-sm font-semibold text-emerald-700 hover:underline">View all</Link>
-          </div>
-          <EmptyState icon={ReceiptText} title="No expenses to show yet" description="Expense records will appear here once the tracking feature is ready." />
-        </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="font-semibold text-slate-900">Getting started</h3>
-          <p className="mt-1 text-sm text-slate-500">A few steps to make this workspace yours.</p>
-          <div className="mt-6 space-y-3">
-            <Link to="/business/setup" className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">1</span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800">Set up your business</span><span className="block text-xs text-slate-500">Add your business details later</span></span>
-              <ArrowRight size={17} className="text-slate-400" />
-            </Link>
-            <Link to="/expenses" className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-600">2</span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800">Explore expenses</span><span className="block text-xs text-slate-500">See where records will live</span></span>
-              <ArrowRight size={17} className="text-slate-400" />
-            </Link>
-          </div>
-        </section>
-      </div>
-    </div>
-  )
+      <p role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">{monthComparison(stats.thisMonthCents, stats.lastMonthCents)}</p>
+      {expenses.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm"><ReceiptText size={32} className="mx-auto text-emerald-600" /><h3 className="mt-3 font-semibold text-slate-900">No expenses to show yet</h3><p className="mt-2 text-sm text-slate-500">Record your first expense to start seeing spending trends here.</p><Link to="/expenses?add=1" className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white">Add Expense</Link></div>}
+      {expenses.length > 0 && <div className="grid min-w-0 gap-5 xl:grid-cols-2"><ExpenseTrendChart expenses={expenses} period={trendPeriod} onPeriodChange={setTrendPeriod} now={now} /><CategoryBreakdown expenses={expenses} title="Category distribution" scopeLabel="All expenses for the active business." compact /></div>}
+      <RecentTransactions expenses={expenses} />
+    </>}
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="font-semibold text-slate-900">Quick actions</h3><div className="mt-4 grid gap-3 sm:grid-cols-2"><Link to="/expenses?add=1" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"><span className="inline-flex items-center gap-2"><Plus size={18} /> Add Expense</span><ArrowRight size={17} /></Link><Link to="/expenses" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><span className="inline-flex items-center gap-2"><ReceiptText size={18} /> View Expenses</span><ArrowRight size={17} /></Link></div></section>
+  </div>
 }
