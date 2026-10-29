@@ -1,5 +1,12 @@
 rules_version = '2';
 
+// Data model: users/{uid} stores uid, fullName, email, createdAt, updatedAt.
+// businesses/{businessId} stores name, category, description, location, currency, timestamps.
+// expenses/{expenseId} stores immutable businessId/source, transaction details, integer amountCents, timestamps.
+// sales/{saleId} stores immutable businessId/source, description, integer amountCents, transaction date, payment details, timestamps.
+// businesses/{businessId}/aiBriefings/{briefingId} stores server-generated analysis and narrative.
+// AI briefings are read-only to clients; all other document validators below apply on create and update.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function ownsDocument(userId) {
@@ -48,6 +55,14 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
+    // AI briefings are written only by the authenticated Vercel backend via Admin SDK.
+    // Clients may read their own saved reports while the parent business still exists.
+    match /users/{userId}/businesses/{businessId}/aiBriefings/{briefingId} {
+      allow get, list: if ownsDocument(userId)
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(businessId));
+      allow create, update, delete: if false;
+    }
+
     function validBusiness() {
       return request.resource.data.keys().hasOnly(['name', 'category', 'description', 'location', 'currency', 'createdAt', 'updatedAt'])
         && request.resource.data.keys().hasAll(['name', 'category', 'description', 'location', 'currency', 'createdAt', 'updatedAt'])
@@ -74,6 +89,25 @@ service cloud.firestore {
       allow update: if ownsDocument(userId)
         && validExpense()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['description', 'category', 'amountCents', 'transactionDate', 'paymentMethod', 'merchant', 'notes', 'updatedAt'])
+        && request.resource.data.businessId == resource.data.businessId
+        && request.resource.data.source == resource.data.source
+        && request.resource.data.createdAt == resource.data.createdAt
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(resource.data.businessId))
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if ownsDocument(userId)
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(resource.data.businessId));
+    }
+
+    match /users/{userId}/sales/{saleId} {
+      allow get, list: if ownsDocument(userId);
+      allow create: if ownsDocument(userId)
+        && validSale()
+        && exists(/databases/$(database)/documents/users/$(userId)/businesses/$(request.resource.data.businessId))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if ownsDocument(userId)
+        && validSale()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['description', 'amountCents', 'transactionDate', 'paymentMethod', 'customer', 'notes', 'updatedAt'])
         && request.resource.data.businessId == resource.data.businessId
         && request.resource.data.source == resource.data.source
         && request.resource.data.createdAt == resource.data.createdAt
@@ -113,6 +147,29 @@ service cloud.firestore {
         && request.resource.data.paymentMethod in ['', 'Cash', 'Bank Transfer', 'E-Wallet', 'Debit/Credit Card', 'Other']
         && request.resource.data.merchant is string
         && request.resource.data.merchant.size() <= 120
+        && request.resource.data.notes is string
+        && request.resource.data.notes.size() <= 500
+        && request.resource.data.source == 'manual'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validSale() {
+      return request.resource.data.keys().hasOnly(['businessId', 'description', 'amountCents', 'transactionDate', 'paymentMethod', 'customer', 'notes', 'source', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['businessId', 'description', 'amountCents', 'transactionDate', 'paymentMethod', 'customer', 'notes', 'source', 'createdAt', 'updatedAt'])
+        && request.resource.data.businessId is string
+        && request.resource.data.businessId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && request.resource.data.description is string
+        && request.resource.data.description.trim().size() >= 1
+        && request.resource.data.description.size() <= 120
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents > 0
+        && request.resource.data.amountCents <= 99999999999
+        && request.resource.data.transactionDate is string
+        && validTransactionDate(request.resource.data.transactionDate)
+        && request.resource.data.paymentMethod in ['', 'Cash', 'Bank Transfer', 'E-Wallet', 'Debit/Credit Card', 'Other']
+        && request.resource.data.customer is string
+        && request.resource.data.customer.size() <= 120
         && request.resource.data.notes is string
         && request.resource.data.notes.size() <= 500
         && request.resource.data.source == 'manual'

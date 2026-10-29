@@ -8,6 +8,8 @@ let testEnvironment
 const timestamp = Timestamp.fromDate(new Date('2026-10-28T00:00:00Z'))
 const business = { name: 'Amina Market', category: 'Retail', description: '', location: '', currency: 'MYR', createdAt: timestamp, updatedAt: timestamp }
 const expense = { businessId: 'business-1', description: 'Cooking oil', category: 'Ingredients', amountCents: 2550, transactionDate: '2026-10-28', paymentMethod: 'Cash', merchant: '', notes: '', source: 'manual', createdAt: timestamp, updatedAt: timestamp }
+const sale = { businessId: 'business-1', description: 'Lunch orders', amountCents: 4500, transactionDate: '2026-10-28', paymentMethod: 'Cash', customer: '', notes: '', source: 'manual', createdAt: timestamp, updatedAt: timestamp }
+const briefing = { businessId: 'business-1', generatedAt: timestamp, headline: 'Review spending', provider: 'Nebius Token Factory' }
 const profile = (uid) => ({ uid, fullName: `${uid} Owner`, email: `${uid}@example.com`, createdAt: timestamp, updatedAt: timestamp })
 
 function owner(uid = 'alice') {
@@ -38,6 +40,8 @@ beforeEach(async () => {
       await setDoc(doc(admin, 'users', uid), profile(uid))
       await setDoc(doc(admin, 'users', uid, 'businesses', 'business-1'), business)
       await setDoc(doc(admin, 'users', uid, 'expenses', 'expense-1'), expense)
+      await setDoc(doc(admin, 'users', uid, 'sales', 'sale-1'), sale)
+      await setDoc(doc(admin, 'users', uid, 'businesses', 'business-1', 'aiBriefings', 'briefing-1'), briefing)
     }
   })
 })
@@ -120,4 +124,56 @@ test('expenses cannot refer to missing or another user business', async () => {
   const db = owner()
   await denied(setDoc(doc(db, 'users/alice/expenses/missing-business'), { ...expense, businessId: 'missing', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
   await denied(setDoc(doc(db, 'users/alice/expenses/bobs-business'), { ...expense, businessId: 'bob-business', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+})
+
+test('owners can read saved AI briefings but clients cannot write them', async () => {
+  const db = owner()
+  await assertSucceeds(getDoc(doc(db, 'users/alice/businesses/business-1/aiBriefings/briefing-1')))
+  await assertSucceeds(getDocs(collection(db, 'users/alice/businesses/business-1/aiBriefings')))
+  await denied(setDoc(doc(db, 'users/alice/businesses/business-1/aiBriefings/new'), briefing))
+  await denied(updateDoc(doc(db, 'users/alice/businesses/business-1/aiBriefings/briefing-1'), { headline: 'Changed' }))
+  await denied(deleteDoc(doc(db, 'users/alice/businesses/business-1/aiBriefings/briefing-1')))
+})
+
+test('unauthenticated and cross-user briefing reads are denied', async () => {
+  const path = 'users/bob/businesses/business-1/aiBriefings/briefing-1'
+  await denied(getDoc(doc(testEnvironment.unauthenticatedContext().firestore(), path)))
+  await denied(getDoc(doc(owner('alice'), path)))
+  await denied(getDocs(collection(owner('alice'), 'users/bob/businesses/business-1/aiBriefings')))
+})
+
+test('owners can query, create, update, and delete their own sales', async () => {
+  const db = owner()
+  await assertSucceeds(getDoc(doc(db, 'users/alice/sales/sale-1')))
+  const result = await assertSucceeds(getDocs(query(collection(db, 'users/alice/sales'), where('businessId', '==', 'business-1'))))
+  assert.equal(result.size, 1)
+  await assertSucceeds(setDoc(doc(db, 'users/alice/sales/new'), { ...sale, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await assertSucceeds(updateDoc(doc(db, 'users/alice/sales/sale-1'), { amountCents: 5000, updatedAt: serverTimestamp() }))
+  await assertSucceeds(deleteDoc(doc(db, 'users/alice/sales/sale-1')))
+})
+
+test('sales deny unauthenticated and cross-user access', async () => {
+  const anonymous = testEnvironment.unauthenticatedContext().firestore()
+  const alice = owner('alice')
+  await denied(getDoc(doc(anonymous, 'users/alice/sales/sale-1')))
+  await denied(setDoc(doc(anonymous, 'users/alice/sales/new'), { ...sale, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(getDoc(doc(alice, 'users/bob/sales/sale-1')))
+  await denied(getDocs(collection(alice, 'users/bob/sales')))
+  await denied(setDoc(doc(alice, 'users/bob/sales/new'), { ...sale, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(updateDoc(doc(alice, 'users/bob/sales/sale-1'), { amountCents: 1, updatedAt: serverTimestamp() }))
+  await denied(deleteDoc(doc(alice, 'users/bob/sales/sale-1')))
+})
+
+test('sales reject invalid money, dates, fields, and business reassignment', async () => {
+  const db = owner()
+  for (const amountCents of [0, -1, 12.5, Number.NaN, Number.POSITIVE_INFINITY, '4500']) {
+    await denied(setDoc(doc(db, 'users/alice/sales', `bad-${String(amountCents).replace(/[^a-z0-9]/gi, '')}`), { ...sale, amountCents, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  }
+  await denied(setDoc(doc(db, 'users/alice/sales/bad-date'), { ...sale, transactionDate: '2026-02-31', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(setDoc(doc(db, 'users/alice/sales/extra'), { ...sale, admin: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(setDoc(doc(db, 'users/alice/sales/other-business'), { ...sale, businessId: 'missing', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(updateDoc(doc(db, 'users/alice/sales/sale-1'), { businessId: 'other', updatedAt: serverTimestamp() }))
+  await denied(updateDoc(doc(db, 'users/alice/sales/sale-1'), { source: 'imported', updatedAt: serverTimestamp() }))
+  await denied(updateDoc(doc(db, 'users/alice/sales/sale-1'), { createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  await denied(updateDoc(doc(db, 'users/alice/sales/sale-1'), { notes: 'x'.repeat(501), updatedAt: serverTimestamp() }))
 })

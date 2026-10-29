@@ -7,11 +7,13 @@ import { DashboardPage } from './DashboardPage'
 import { useAuth } from '../../hooks/useAuth'
 import { useBusiness } from '../../hooks/useBusiness'
 import { useExpenses } from '../../hooks/useExpenses'
+import { useSales } from '../../hooks/useSales'
 import { localDateString } from '../../utils/localDates'
 
 vi.mock('../../hooks/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../../hooks/useBusiness', () => ({ useBusiness: vi.fn() }))
 vi.mock('../../hooks/useExpenses', () => ({ useExpenses: vi.fn() }))
+vi.mock('../../hooks/useSales', () => ({ useSales: vi.fn() }))
 vi.mock('recharts', () => ({ ResponsiveContainer: ({ children }) => <div>{children}</div>, BarChart: ({ children }) => <div>{children}</div>, Bar: () => null, CartesianGrid: () => null, XAxis: () => null, YAxis: () => null, PieChart: ({ children }) => <div>{children}</div>, Pie: ({ children }) => <div>{children}</div>, Cell: () => null, Tooltip: () => null }))
 
 const now = new Date()
@@ -20,6 +22,7 @@ const previousDate = localDateString(new Date(now.getFullYear(), now.getMonth() 
 const ingredient = { id: 'a', businessId: 'business-1', description: 'Cooking Oil', category: 'Ingredients', amountCents: 2500, transactionDate: currentDate }
 const rent = { id: 'b', businessId: 'business-1', description: 'Shop Rent', category: 'Rent', amountCents: 5000, transactionDate: previousDate }
 let expenseState
+let saleState
 
 function renderDashboard() { return render(<MemoryRouter><DashboardPage /></MemoryRouter>) }
 function card(label) { return screen.getByText(label).closest('section') }
@@ -30,6 +33,8 @@ beforeEach(() => {
   vi.mocked(useBusiness).mockReturnValue({ activeBusiness: { id: 'business-1', name: 'Amina Market' } })
   expenseState = { expenses: [], loading: false, error: null }
   vi.mocked(useExpenses).mockImplementation(() => expenseState)
+  saleState = { sales: [], loading: false, error: null }
+  vi.mocked(useSales).mockImplementation(() => saleState)
 })
 afterEach(cleanup)
 
@@ -39,6 +44,7 @@ describe('live expense dashboard', () => {
     renderDashboard()
     expect(useExpenses).toHaveBeenCalledWith('business-1')
     expect(useExpenses).toHaveBeenCalledTimes(1)
+    expect(useSales).toHaveBeenCalledWith('business-1')
     expect(screen.getByRole('heading', { name: /Good (morning|afternoon|evening), Amina!/ })).toBeTruthy()
     expect(screen.getByText('Amina Market')).toBeTruthy()
     expect(within(card('Total Expenses')).getByText('RM75.00')).toBeTruthy()
@@ -50,6 +56,22 @@ describe('live expense dashboard', () => {
     expect(screen.getByText('66.7%')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'View All Expenses' }).getAttribute('href')).toBe('/expenses')
     expect(screen.getByText('No expenses recorded in this period.')).toBeTruthy()
+  })
+
+  it('updates recorded revenue and cash-based surplus after sales snapshots', () => {
+    expenseState.expenses = [ingredient]
+    const view = renderDashboard()
+    expect(within(card('Sales This Month')).getByText('Unavailable')).toBeTruthy()
+    saleState = { sales: [{ id: 'sale-1', amountCents: 10000, transactionDate: currentDate }], loading: false, error: null }
+    view.rerender(<MemoryRouter><DashboardPage /></MemoryRouter>)
+    expect(within(card('Sales This Month')).getByText('RM100.00')).toBeTruthy()
+    expect(within(card('Estimated Cash-Based Surplus')).getByText('RM75.00')).toBeTruthy()
+    expenseState = { expenses: [{ ...ingredient, amountCents: 5000 }], loading: false, error: null }
+    view.rerender(<MemoryRouter><DashboardPage /></MemoryRouter>)
+    expect(within(card('Estimated Cash-Based Surplus')).getByText('RM50.00')).toBeTruthy()
+    saleState = { sales: [], loading: false, error: null }
+    view.rerender(<MemoryRouter><DashboardPage /></MemoryRouter>)
+    expect(within(card('Estimated Cash-Based Surplus')).getByText('Unavailable')).toBeTruthy()
   })
 
   it('recalculates after add, edit, and delete snapshots without another data source', () => {

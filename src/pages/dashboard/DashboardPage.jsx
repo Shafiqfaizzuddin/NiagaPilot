@@ -1,25 +1,30 @@
 import { useState } from 'react'
-import { ArrowRight, CalendarDays, Plus, ReceiptText, Wallet } from 'lucide-react'
+import { ArrowRight, CalendarDays, Plus, ReceiptText, ShoppingBag, Wallet } from 'lucide-react'
 import { Link } from 'react-router'
 import { StatCard } from '../../components/dashboard/StatCard'
 import { ExpenseTrendChart } from '../../components/dashboard/ExpenseTrendChart'
 import { RecentTransactions } from '../../components/dashboard/RecentTransactions'
+import { AiPreview } from '../../components/dashboard/AiPreview'
 import { CategoryBreakdown } from '../../components/expenses/CategoryBreakdown'
 import { useAuth } from '../../hooks/useAuth'
 import { useBusiness } from '../../hooks/useBusiness'
 import { useExpenses } from '../../hooks/useExpenses'
+import { useSales } from '../../hooks/useSales'
 import { dashboardExpenseStats, greetingForLocalTime, monthComparison } from '../../utils/dashboardData'
+import { saleStats } from '../../utils/saleData'
 import { formatMYR } from '../../utils/money'
 
 export function DashboardPage() {
   const { userProfile } = useAuth()
   const { activeBusiness } = useBusiness()
   const { expenses, loading, error } = useExpenses(activeBusiness.id)
+  const { sales, loading: salesLoading, error: salesError } = useSales(activeBusiness.id)
   const [trendPeriod, setTrendPeriod] = useState('last7')
   const now = new Date()
   const firstName = userProfile?.fullName?.trim().split(/\s+/)[0] || 'there'
   const currentDate = new Intl.DateTimeFormat('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)
   const stats = dashboardExpenseStats(expenses, now)
+  const revenue = saleStats(sales, now)
 
   return <div className="space-y-6 sm:space-y-7">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -40,6 +45,12 @@ export function DashboardPage() {
       <RecentTransactions expenses={expenses} />
     </>}
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="font-semibold text-slate-900">Quick actions</h3><div className="mt-4 grid gap-3 sm:grid-cols-2"><Link to="/expenses?add=1" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"><span className="inline-flex items-center gap-2"><Plus size={18} /> Add Expense</span><ArrowRight size={17} /></Link><Link to="/expenses" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><span className="inline-flex items-center gap-2"><ReceiptText size={18} /> View Expenses</span><ArrowRight size={17} /></Link></div></section>
+    <section className="space-y-3"><div><h3 className="font-semibold text-slate-900">Recorded sales and cash-based summary</h3><p className="mt-1 text-xs text-slate-500">Recorded revenue minus recorded expenses is an estimate, not accounting net profit.</p></div>
+      {salesLoading || loading ? <div aria-label="Loading sales summary" className="grid gap-4 sm:grid-cols-3">{[1, 2, 3].map((item) => <div key={item} className="h-28 animate-pulse rounded-2xl bg-slate-200" />)}</div> : salesError || error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not load the sales and expense summary. Check your Firestore permissions and connection.</p> : <><div className="grid gap-4 sm:grid-cols-3"><StatCard label="Sales This Month" icon={ShoppingBag} value={sales.length ? formatMYR(revenue.monthCents) : 'Unavailable'} note={sales.length ? 'Recorded revenue · current month' : 'No sales recorded yet'} /><StatCard label="Sales Last Month" icon={ShoppingBag} value={sales.length ? formatMYR(revenue.previousMonthCents) : 'Unavailable'} note="Recorded revenue · previous month" /><StatCard label="Estimated Cash-Based Surplus" icon={Wallet} value={sales.length ? formatMYR(revenue.monthCents - stats.thisMonthCents) : 'Unavailable'} note="Current month · recorded revenue minus expenses" /></div>{sales.length === 0 && <p className="text-sm text-slate-500">Record a sale to include revenue in your dashboard and AI insights.</p>}</>}
+    </section>
+
+    <AiPreview key={activeBusiness.id} businessId={activeBusiness.id} />
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="font-semibold text-slate-900">Quick actions</h3><div className="mt-4 grid gap-3 sm:grid-cols-3"><Link to="/expenses?add=1" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"><span className="inline-flex items-center gap-2"><Plus size={18} /> Add Expense</span><ArrowRight size={17} /></Link><Link to="/sales?add=1" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><span className="inline-flex items-center gap-2"><ShoppingBag size={18} /> Add Sale</span><ArrowRight size={17} /></Link><Link to="/expenses" className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><span className="inline-flex items-center gap-2"><ReceiptText size={18} /> View Expenses</span><ArrowRight size={17} /></Link></div></section>
   </div>
 }

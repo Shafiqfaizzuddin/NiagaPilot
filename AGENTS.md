@@ -10,6 +10,9 @@
 - Authentication uses Firebase Email/Password and per-user Firestore profiles. Keep client routes and Firestore rules aligned.
 - Business data lives in `users/{uid}/businesses/{businessId}`. Derive `uid` from Firebase Auth in the service, validate all editable fields, and use `BusinessContext` for the active business.
 - Expense transactions live in `users/{uid}/expenses/{expenseId}`, with integer cents and an immutable business ID. Keep expense reads scoped to the active business.
-- Do not implement Sales, AI Insights, or receipt extraction until requested.
+- AI Insights use authenticated Vercel Functions in `api/`; keep Firebase Admin credentials and Nebius keys server-side. Never import `api/` or `firebase-admin` into browser code.
+- Financial analysis and observation rules run on the server, use integer cents and transaction dates, and keep generated AI narrative separate from authoritative metrics. Save only validated AI briefings under the authenticated user's business.
+- Treat transaction text as untrusted and never send receipt notes or descriptions to the model. Keep local and deployed credentials outside Git.
+- Sales transactions live in `users/{uid}/sales/{saleId}`, with integer cents, local transaction dates, and immutable business association. Keep sales reads scoped to the active business. Receipt extraction remains outside the current checkout. Do not invent financial records.
 - Use async/await for asynchronous operations, readable names, and comments only for non-obvious logic.
 - Before delivery, run `npm run lint`, `npm run test`, and `npm run build`.

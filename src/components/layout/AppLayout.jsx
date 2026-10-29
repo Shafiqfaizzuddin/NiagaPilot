@@ -11,14 +11,14 @@ import { useBusiness } from '../../hooks/useBusiness'
 const navigation = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/expenses', label: 'Expenses', icon: ReceiptText },
-  { to: '/sales', label: 'Sales', icon: ShoppingBag, soon: true },
-  { to: '/insights', label: 'AI Insights', icon: Lightbulb, soon: true },
+  { to: '/sales', label: 'Sales', icon: ShoppingBag },
+  { to: '/ai-insights', label: 'AI Insights', icon: Lightbulb },
 ]
 const titles = {
   '/dashboard': ['Dashboard', 'Your business at a glance'],
   '/expenses': ['Expenses', 'Keep track of what your business spends'],
-  '/sales': ['Sales', 'A home for your sales, coming later'],
-  '/insights': ['AI Insights', 'Helpful insights, coming later'],
+  '/sales': ['Sales', 'Record and review business revenue'],
+  '/ai-insights': ['AI Business Insights', 'Understand your business performance'],
   '/settings': ['Settings', 'Manage your workspace preferences'],
   '/business/setup': ['Business setup', 'Get your business workspace ready'],
 }
@@ -26,11 +26,11 @@ const titles = {
 function SideNav({ collapsed, onNavigate }) {
   return (
     <nav aria-label="Main navigation" className="mt-7 space-y-1">
-      {navigation.map(({ to, label, icon: Icon, soon }) => (
+      {navigation.map(({ to, label, icon: Icon }) => (
         <NavLink key={to} to={to} onClick={onNavigate} title={collapsed ? label : undefined}
           className={({ isActive }) => `group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${isActive ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
           <Icon size={19} className="shrink-0" />
-          {!collapsed && <><span className="flex-1">{label}</span>{soon && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Soon</span>}</>}
+          {!collapsed && <span className="flex-1">{label}</span>}
         </NavLink>
       ))}
       <div className="my-5 border-t border-slate-200" />

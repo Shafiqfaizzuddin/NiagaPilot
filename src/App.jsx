@@ -7,7 +7,8 @@ import { BusinessSetupPage } from './pages/business/BusinessSetupPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { ExpensesPage } from './pages/expenses/ExpensesPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
-import { ComingSoonPage } from './pages/ComingSoonPage'
+import { SalesPage } from './pages/sales/SalesPage'
+import { InsightsPage } from './pages/insights/InsightsPage'
 
 export default function App() {
   return (
@@ -24,8 +25,9 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/expenses" element={<ExpensesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/sales" element={<ComingSoonPage type="sales" />} />
-            <Route path="/insights" element={<ComingSoonPage type="insights" />} />
+            <Route path="/sales" element={<SalesPage />} />
+            <Route path="/ai-insights" element={<InsightsPage />} />
+            <Route path="/insights" element={<Navigate to="/ai-insights" replace />} />
           </Route>
         </Route>
       </Route>

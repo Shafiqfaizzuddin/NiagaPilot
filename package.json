@@ -5,16 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:full": "node scripts/devFull.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:rules": "node --test tests/firestore.rules.test.mjs",
     "test:rules:emulator": "firebase emulators:exec --only firestore --project demo-niagapilot \"npm run test:rules\"",
+    "check:config": "node scripts/checkConfig.mjs",
+    "import:service-account": "node scripts/importServiceAccount.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.1",
     "firebase": "^13.1.0",
+    "firebase-admin": "14.5.0",
     "lucide-react": "^1.62.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -24,7 +28,10 @@
     "zod": "^4.6.7"
   },
   "overrides": {
-    "@grpc/grpc-js": "^1.14.6"
+    "@grpc/grpc-js": "^1.14.6",
+    "firebase-admin": {
+      "jwks-rsa": "3.2.2"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
